@@ -1,0 +1,110 @@
+/* Tokens dos quatro temas do Continental Atlas (seção 4.3 da especificação). */
+:root,
+:root[data-tema="claro"] {
+  --fundo: #E6EDF6;
+  --texto: #020C21;
+  --texto-suave: #0F182F;
+  --texto-secundario: #59627E;
+  --primario: #0F1B31;
+  --primario-bolinha: #384B64;
+  --primario-texto: #FFFFFF;
+  --destaque: #4A78B0;
+  --trilha: #DDE4EE;
+  --preenchimento: #5F88B4;
+  --vidro-pilula: rgba(255,255,255,.78);
+  --vidro-painel-a: rgba(255,255,255,.44);
+  --vidro-painel-b: rgba(255,255,255,.16);
+  --vidro-borda: rgba(255,255,255,.60);
+  --anel: rgba(120,145,180,.20);
+  --brilho-a: rgba(255,255,255,.55);
+  --brilho-b: rgba(255,255,255,.18);
+  --campo: rgba(255,255,255,.62);
+  --linha: rgba(15,27,49,.08);
+  --sombra: rgba(28,52,92,.07);
+  --ok: #2E8B57; --atencao: #C98A1B; --erro: #B42318;
+  --globo-linha: 15,27,49;
+  --globo-brilho: 255,255,255;
+  --globo-halo: 95,136,180;
+  color-scheme: light;
+}
+:root[data-tema="escuro"] {
+  --fundo: #060D1C;
+  --texto: #E8EEF7;
+  --texto-suave: #C9D3E3;
+  --texto-secundario: #8C97AE;
+  --primario: #E6EDF6;
+  --primario-bolinha: #C3D0E2;
+  --primario-texto: #020C21;
+  --destaque: #7EA6DA;
+  --trilha: rgba(255,255,255,.10);
+  --preenchimento: #7EA6DA;
+  --vidro-pilula: rgba(255,255,255,.08);
+  --vidro-painel-a: rgba(255,255,255,.10);
+  --vidro-painel-b: rgba(255,255,255,.03);
+  --vidro-borda: rgba(255,255,255,.14);
+  --anel: rgba(126,166,218,.18);
+  --brilho-a: rgba(255,255,255,.12);
+  --brilho-b: rgba(255,255,255,.04);
+  --campo: rgba(255,255,255,.06);
+  --linha: rgba(255,255,255,.08);
+  --sombra: rgba(0,0,0,.35);
+  --ok: #5CC98C; --atencao: #E7B04A; --erro: #F0776B;
+  --globo-linha: 200,215,235;
+  --globo-brilho: 126,166,218;
+  --globo-halo: 60,100,160;
+  color-scheme: dark;
+}
+:root[data-tema="azul"] {
+  --fundo: #D7E6FB;
+  --texto: #041A3D;
+  --texto-suave: #0B2552;
+  --texto-secundario: #4B5F82;
+  --primario: #0B3A8C;
+  --primario-bolinha: #2F5FB0;
+  --primario-texto: #FFFFFF;
+  --destaque: #2563C9;
+  --trilha: #C6D8F3;
+  --preenchimento: #2F6BD1;
+  --vidro-pilula: rgba(255,255,255,.72);
+  --vidro-painel-a: rgba(255,255,255,.42);
+  --vidro-painel-b: rgba(255,255,255,.14);
+  --vidro-borda: rgba(255,255,255,.60);
+  --anel: rgba(37,99,201,.18);
+  --brilho-a: rgba(255,255,255,.55);
+  --brilho-b: rgba(255,255,255,.18);
+  --campo: rgba(255,255,255,.62);
+  --linha: rgba(11,58,140,.10);
+  --sombra: rgba(11,58,140,.08);
+  --ok: #2E8B57; --atencao: #C98A1B; --erro: #B42318;
+  --globo-linha: 11,58,140;
+  --globo-brilho: 255,255,255;
+  --globo-halo: 47,107,209;
+  color-scheme: light;
+}
+:root[data-tema="vermelho"] {
+  --fundo: #F6E4E6;
+  --texto: #2A0509;
+  --texto-suave: #3D0B11;
+  --texto-secundario: #7A5157;
+  --primario: #7A0F1B;
+  --primario-bolinha: #A0303C;
+  --primario-texto: #FFFFFF;
+  --destaque: #C8323F;
+  --trilha: #EFD2D6;
+  --preenchimento: #C8323F;
+  --vidro-pilula: rgba(255,255,255,.72);
+  --vidro-painel-a: rgba(255,255,255,.42);
+  --vidro-painel-b: rgba(255,255,255,.14);
+  --vidro-borda: rgba(255,255,255,.60);
+  --anel: rgba(200,50,63,.16);
+  --brilho-a: rgba(255,255,255,.55);
+  --brilho-b: rgba(255,255,255,.18);
+  --campo: rgba(255,255,255,.62);
+  --linha: rgba(122,15,27,.10);
+  --sombra: rgba(122,15,27,.07);
+  --ok: #2E8B57; --atencao: #C98A1B; --erro: #B42318;
+  --globo-linha: 122,15,27;
+  --globo-brilho: 255,255,255;
+  --globo-halo: 200,50,63;
+  color-scheme: light;
+}
