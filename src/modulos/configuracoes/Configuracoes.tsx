@@ -8,8 +8,8 @@ import { ID_CONFIG } from '../../lib/sementes';
 import { dataCurta, diaDe, horaDe, moeda, numero } from '../../lib/formato';
 import { baixarBackupExcel, baixarBackupJSON, restaurarBackup } from '../../lib/backup';
 import { rotinaDiaria } from '../../lib/automacoes';
-import { sincronizar } from '../../lib/sync';
-import { supabase } from '../../lib/supabase';
+import { sincronizar, forcarSincronizacaoCompleta, testarConexaoSupabase } from '../../lib/sync';
+import { supabase, SUPABASE_URL_ATUAL } from '../../lib/supabase';
 import { db } from '../../lib/db';
 import { cadastrarDigital, definirPin, digitalDisponivel, removerBloqueio, temDigital, temPin } from '../../lib/bloqueio';
 import { ModalPix } from '../cobrancas/componentes';
@@ -468,44 +468,173 @@ function FinanceiroMei() {
   );
 }
 
+
 function Dados() {
   const s = useStatusSync();
   const avisar = useAvisar();
   const [email, setEmail] = useState<string | null>(null);
-  useEffect(() => { supabase?.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null)); }, []);
+
+  // Estado do painel de diagnóstico
+  const [testando, setTestando] = useState(false);
+  const [resultadoTeste, setResultadoTeste] = useState<{
+    ok: boolean; latenciaMs: number; usuario: string | null;
+    totalClientesNuvem: number; detalhes?: string; erro?: string;
+  } | null>(null);
+  const [baixando, setBaixando] = useState(false);
+  const [resultadoBaixar, setResultadoBaixar] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase?.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+  }, [s.sessaoAtiva]);
+
+  const testar = async () => {
+    setTestando(true);
+    setResultadoTeste(null);
+    const r = await testarConexaoSupabase();
+    setResultadoTeste(r);
+    setTestando(false);
+  };
+
+  const baixarDaNuvem = async () => {
+    setBaixando(true);
+    setResultadoBaixar(null);
+    const r = await forcarSincronizacaoCompleta();
+    setBaixando(false);
+    if (r.sucesso) {
+      setResultadoBaixar(`✅ ${r.total} registros baixados com sucesso da nuvem!`);
+      avisar(`${r.total} registros sincronizados da nuvem`);
+    } else {
+      setResultadoBaixar(`❌ Erro: ${r.erro}`);
+    }
+  };
+
   const restaurar = async (f?: File) => {
     if (!f || !window.confirm('Restaurar este backup? Os registros do arquivo que forem mais novos substituem os atuais.')) return;
     try { avisar(`${await restaurarBackup(f)} registros restaurados`); } catch (e: any) { avisar(e.message); }
   };
+
   const sair = async () => {
-    if (s.pendentes && !window.confirm('Ainda há alterações não enviadas. Sair mesmo assim? Elas serão perdidas.')) return;
+    if (s.pendentes && !window.confirm('Ainda há alterações não enviadas. Sair mesmo assim?')) return;
     await supabase?.auth.signOut();
     await db.delete();
     location.reload();
   };
+
   return (
     <div className="coluna" style={{ gap: 18 }}>
-      <Card titulo="Sincronização">
-        {s.modo === 'local' ? (
-          <p className="faixa">Modo local: os dados ficam só neste aparelho. Para usar no celular e no computador ao mesmo tempo, siga o passo "Ligar a Sincronização" do README.</p>
-        ) : (
-          <div className="coluna">
-            <div className="linha">
-              <Chip cor={s.erro ? 'erro' : s.online ? 'ok' : 'atencao'}>{s.erro ? 'Erro' : s.online ? 'Conectado' : 'Sem internet'}</Chip>
-              {s.ultimo && <span className="secundario pequeno">Última sincronização {dataCurta(diaDe(s.ultimo))} às {horaDe(s.ultimo)}</span>}
-              {s.pendentes > 0 && <span className="secundario pequeno">{s.pendentes} alterações esperando envio</span>}
-            </div>
-            {s.erro && <p className="faixa negativo">{s.erro}</p>}
-            {email && <p className="secundario pequeno">Conta: {email}</p>}
-            <div className="linha">
-              <Botao icone={<RefreshCw size={16} />} onClick={() => sincronizar()}>Sincronizar agora</Botao>
-              <Botao variante="fantasma" icone={<LogOut size={16} />} onClick={sair}>Sair da conta</Botao>
-            </div>
+
+      {/* ============ DIAGNÓSTICO SUPABASE ============ */}
+      <Card titulo="☁️ Status da Conexão com o Banco (Supabase)">
+        <div className="coluna" style={{ gap: 12 }}>
+
+          {/* Indicador visual de status */}
+          <div className="linha" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{
+              width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
+              background: s.sessaoAtiva && s.online ? 'var(--ok)' : s.erro ? 'var(--erro)' : 'var(--atencao)',
+              boxShadow: s.sessaoAtiva && s.online ? '0 0 6px var(--ok)' : 'none'
+            }} />
+            <span style={{ fontWeight: 600, fontSize: 15 }}>
+              {s.sessaoAtiva && s.online ? '🟢 Banco Conectado e Ativo'
+                : s.sessaoAtiva && !s.online ? '🟡 Conta Ativa — Sem Internet'
+                : '🔴 Não Logado — Dados Locais Apenas'}
+            </span>
           </div>
-        )}
+
+          {/* Detalhes técnicos */}
+          <div className="vidro-painel" style={{ padding: '10px 14px', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13 }}>
+            <div><span className="secundario">Servidor:</span> <strong style={{ wordBreak: 'break-all' }}>{SUPABASE_URL_ATUAL}</strong></div>
+            <div><span className="secundario">Conta logada:</span> <strong>{email || s.emailUsuario || '—'}</strong></div>
+            <div><span className="secundario">Sessão ativa:</span> <strong>{s.sessaoAtiva ? 'Sim ✓' : 'Não — entre com sua conta'}</strong></div>
+            {s.ultimo && <div><span className="secundario">Último sync:</span> <strong>{dataCurta(diaDe(s.ultimo))} às {horaDe(s.ultimo)}</strong></div>}
+            {s.pendentes > 0 && <div><span className="secundario">Pendências:</span> <strong style={{ color: 'var(--atencao)' }}>{s.pendentes} alterações aguardando envio</strong></div>}
+            {s.erro && <div><span className="secundario">Erro:</span> <strong style={{ color: 'var(--erro)' }}>{s.erro}</strong></div>}
+          </div>
+
+          {/* Resultado do teste */}
+          {resultadoTeste && (
+            <div className="vidro-painel" style={{
+              padding: '10px 14px', borderRadius: 10, fontSize: 13,
+              borderLeft: `3px solid ${resultadoTeste.ok ? 'var(--ok)' : 'var(--erro)'}`
+            }}>
+              {resultadoTeste.ok ? (
+                <>
+                  <div>✅ <strong>Banco respondendo!</strong> Latência: <strong>{resultadoTeste.latenciaMs}ms</strong></div>
+                  <div>👤 Usuário: <strong>{resultadoTeste.usuario || '—'}</strong></div>
+                  <div>🗃️ Clientes na nuvem: <strong>{resultadoTeste.totalClientesNuvem}</strong></div>
+                </>
+              ) : (
+                <div>❌ <strong>Falha na conexão:</strong> {resultadoTeste.erro}</div>
+              )}
+            </div>
+          )}
+
+          {/* Resultado do download forçado */}
+          {resultadoBaixar && (
+            <div className="vidro-painel" style={{
+              padding: '10px 14px', borderRadius: 10, fontSize: 13,
+              borderLeft: `3px solid ${resultadoBaixar.startsWith('✅') ? 'var(--ok)' : 'var(--erro)'}`
+            }}>
+              {resultadoBaixar}
+            </div>
+          )}
+
+          {/* Botões de ação */}
+          <div className="linha" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <Botao
+              icone={<RefreshCw size={15} />}
+              onClick={testar}
+              disabled={testando}
+            >
+              {testando ? 'Testando conexão...' : 'Testar Conexão Agora'}
+            </Botao>
+
+            {s.sessaoAtiva && (
+              <>
+                <Botao
+                  icone={<RefreshCw size={15} />}
+                  onClick={() => sincronizar()}
+                  disabled={s.sincronizando}
+                >
+                  {s.sincronizando ? 'Sincronizando...' : 'Sincronizar Agora'}
+                </Botao>
+                <Botao
+                  variante="fantasma"
+                  icone={<RefreshCw size={15} />}
+                  onClick={baixarDaNuvem}
+                  disabled={baixando}
+                >
+                  {baixando ? 'Baixando da nuvem...' : '⬇️ Forçar Download da Nuvem'}
+                </Botao>
+              </>
+            )}
+          </div>
+
+          {/* Conta / Login / Logout */}
+          {s.sessaoAtiva ? (
+            <div className="linha">
+              <Botao variante="fantasma" icone={<LogOut size={16} />} onClick={sair}>Sair da Conta</Botao>
+            </div>
+          ) : (
+            <div className="vidro-painel" style={{ padding: '12px 14px', borderRadius: 10, fontSize: 13, color: 'var(--atencao)' }}>
+              <strong>⚠️ Você não está logado.</strong> No Netlify ou em outro navegador/celular, os dados ficam zerados até entrar com sua conta. Faça login na tela inicial ou em <strong>Mais → Configurações → Dados → Entrar</strong>.
+            </div>
+          )}
+        </div>
       </Card>
+
+      {/* ============ SINCRONIZAÇÃO BÁSICA ============ */}
+      <Card titulo="Sincronização Automática">
+        <p className="secundario" style={{ marginBottom: 10, fontSize: 13 }}>
+          O sistema salva tudo localmente primeiro e envia para a nuvem em segundos (modo "offline-first").
+          A sincronização acontece: ao abrir o app, ao voltar a ter internet e a cada 60 segundos.
+        </p>
+        {s.erro && <p className="faixa negativo" style={{ marginBottom: 10 }}>{s.erro}</p>}
+      </Card>
+
+      {/* ============ BACKUP ============ */}
       <Card titulo="Backup">
-        <p className="secundario" style={{ marginBottom: 14 }}>Baixe uma cópia completa dos seus dados. O backup automático semanal no Google Drive chega na Fase 3.</p>
+        <p className="secundario" style={{ marginBottom: 14 }}>Baixe uma cópia completa dos seus dados.</p>
         <div className="linha">
           <Botao icone={<Download size={16} />} onClick={baixarBackupJSON}>Baixar backup completo</Botao>
           <Botao icone={<Download size={16} />} onClick={baixarBackupExcel}>Baixar em Excel</Botao>
@@ -514,12 +643,14 @@ function Dados() {
           </label>
         </div>
       </Card>
+
       <Card titulo="Importar Planilhas">
         <div className="coluna">
           <Importador tipo="clientes" />
           <Importador tipo="lancamentos" />
         </div>
       </Card>
+
       <Card titulo="Rotinas Automáticas">
         <p className="secundario" style={{ marginBottom: 14 }}>Todo dia, ao abrir o Atlas, ele gera as cobranças do mês, marca as atrasadas, cria as tarefas mensais, repete as contas fixas e agenda os lembretes do MEI.</p>
         <Botao onClick={async () => { await rotinaDiaria(true); avisar('Rotinas executadas'); }}>Rodar agora</Botao>
@@ -527,3 +658,4 @@ function Dados() {
     </div>
   );
 }
+

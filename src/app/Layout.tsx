@@ -19,18 +19,34 @@ function Logo() {
 
 function IndicadorSync() {
   const s = useStatusSync();
+  const navegar = useNavigate();
   if (s.modo === 'local') return <span className="chip so-desktop" title="Dados só neste aparelho"><HardDrive size={14} /> Modo local</span>;
+  if (!s.sessaoAtiva) {
+    return (
+      <button
+        type="button"
+        className="chip"
+        data-cor="atencao"
+        title="Clique para entrar na conta e puxar os dados da nuvem"
+        onClick={() => navegar('/configuracoes?aba=dados')}
+        style={{ cursor: 'pointer' }}
+      >
+        <CloudOff size={14} /> Entrar na Nuvem
+      </button>
+    );
+  }
   if (!s.online) return <span className="chip" data-cor="atencao" title={`${s.pendentes} alterações esperando internet`}><CloudOff size={14} /> Sem internet</span>;
   if (s.erro) return <span className="chip" data-cor="erro" title={s.erro}><CloudOff size={14} /> Erro ao sincronizar</span>;
   if (s.sincronizando) return <span className="chip so-desktop"><RefreshCw size={14} /> Sincronizando</span>;
-  return <span className="chip so-desktop" data-cor="ok" title="Tudo sincronizado"><Cloud size={14} /> Sincronizado</span>;
+  return <span className="chip so-desktop" data-cor="ok" title={`Nuvem conectada: ${s.emailUsuario || 'Ativa'}`}><Cloud size={14} /> Sincronizado</span>;
 }
 
 export function Layout({ children }: { children: ReactNode }) {
   const [mais, setMais] = useState(false);
   const [novo, setNovo] = useState(false);
   const navegar = useNavigate();
-  const principais = SECOES.filter((s) => s.principal);
+  const s = useStatusSync();
+  const principais = SECOES.filter((sec) => sec.principal);
   const ir = (rota: string) => { setNovo(false); setMais(false); navegar(rota); };
 
   return (
@@ -41,9 +57,9 @@ export function Layout({ children }: { children: ReactNode }) {
           <span className="marca">Continental Atlas</span>
         </Link>
         <nav className="nav-pilula vidro-pilula" aria-label="Seções principais">
-          {principais.map((s) => (
-            <NavLink key={s.rota} to={s.rota} end={s.rota === '/'} className={({ isActive }) => `nav-item ${isActive ? 'ativo' : ''}`} title={s.rotulo}>
-              <s.icone size={18} strokeWidth={1.7} /><span className="rot">{s.rotulo}</span>
+          {principais.map((sec) => (
+            <NavLink key={sec.rota} to={sec.rota} end={sec.rota === '/'} className={({ isActive }) => `nav-item ${isActive ? 'ativo' : ''}`} title={sec.rotulo}>
+              <sec.icone size={18} strokeWidth={1.7} /><span className="rot">{sec.rotulo}</span>
             </NavLink>
           ))}
           <button className="nav-item" onClick={() => setMais(true)} title="Mais"><MoreHorizontal size={18} strokeWidth={1.7} /><span className="rot">Mais</span></button>
@@ -54,14 +70,39 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      {!s.sessaoAtiva && s.modo === 'nuvem' && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(234,88,12,0.18), rgba(245,158,11,0.18))',
+          borderBottom: '1px solid rgba(245,158,11,0.3)',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          fontSize: 13
+        }}>
+          <span>
+            ☁️ <strong>Atenção:</strong> Você está no navegador web e não fez login. Entre com sua conta para carregar seus clientes e configurações salvos no Supabase.
+          </span>
+          <button
+            type="button"
+            className="btn btn-primario vidro-pilula pequeno"
+            style={{ padding: '4px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            onClick={() => navegar('/configuracoes?aba=dados')}
+          >
+            Entrar e Carregar Dados
+          </button>
+        </div>
+      )}
+
       <main className="conteudo">{children}</main>
 
       <nav className="nav-baixo vidro-pilula" aria-label="Navegação">
         {NAV_CELULAR.map((rota) => {
-          const s = SECOES.find((x) => x.rota === rota)!;
+          const sec = SECOES.find((x) => x.rota === rota)!;
           return (
             <NavLink key={rota} to={rota} end={rota === '/'} className={({ isActive }) => `nav-item ${isActive ? 'ativo' : ''}`}>
-              <s.icone size={20} strokeWidth={1.7} /><span className="rot">{s.rotulo}</span>
+              <sec.icone size={20} strokeWidth={1.7} /><span className="rot">{sec.rotulo}</span>
             </NavLink>
           );
         })}
@@ -71,11 +112,11 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <Modal titulo="Todas as Seções" aberto={mais} aoFechar={() => setMais(false)}>
         <div className="grade-mais">
-          {SECOES.map((s) => (
-            <button key={s.rota} className="mais-item" onClick={() => ir(s.rota)} style={{ cursor: 'pointer', textAlign: 'left' }}>
-              <s.icone size={22} strokeWidth={1.7} />
-              <span style={{ fontWeight: 500 }}>{s.rotulo}</span>
-              {s.fase && <Chip>Fase {s.fase}</Chip>}
+          {SECOES.map((sec) => (
+            <button key={sec.rota} className="mais-item" onClick={() => ir(sec.rota)} style={{ cursor: 'pointer', textAlign: 'left' }}>
+              <sec.icone size={22} strokeWidth={1.7} />
+              <span style={{ fontWeight: 500 }}>{sec.rotulo}</span>
+              {sec.fase && <Chip>Fase {sec.fase}</Chip>}
             </button>
           ))}
         </div>

@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  VITE_SUPABASE_URL = "https://tgueyqsujcpbynyhgzok.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRndWV5cXN1amNwYnlueWhnem9rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3NTI1OTUsImV4cCI6MjEwNTMyODU5NX0.zOgxPKSRdtxm1t5Ex2CnkYmnQt2id78IzrHvwSTgj4Y"
+
+# Redirecionamento essencial para SPA (React Router no Netlify)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
