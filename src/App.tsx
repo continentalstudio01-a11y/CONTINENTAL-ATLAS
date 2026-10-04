@@ -63,8 +63,6 @@ export default function App() {
       try { await semear(); } catch (e) { console.warn('Semear dados locais:', e); }
       if (supabase) {
         try {
-          const { data } = await supabase.auth.getSession();
-          if (!data?.session) { setEstado('login'); return; }
           await Promise.race([sincronizar(), esperar(4000)]);
         } catch (e) {
           console.warn('Sincronização inicial:', e);

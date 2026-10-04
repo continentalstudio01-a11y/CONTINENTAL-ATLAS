@@ -19,22 +19,7 @@ function Logo() {
 
 function IndicadorSync() {
   const s = useStatusSync();
-  const navegar = useNavigate();
   if (s.modo === 'local') return <span className="chip so-desktop" title="Dados só neste aparelho"><HardDrive size={14} /> Modo local</span>;
-  if (!s.sessaoAtiva) {
-    return (
-      <button
-        type="button"
-        className="chip"
-        data-cor="atencao"
-        title="Clique para entrar na conta e puxar os dados da nuvem"
-        onClick={() => navegar('/configuracoes?aba=dados')}
-        style={{ cursor: 'pointer' }}
-      >
-        <CloudOff size={14} /> Entrar na Nuvem
-      </button>
-    );
-  }
   if (!s.online) return <span className="chip" data-cor="atencao" title={`${s.pendentes} alterações esperando internet`}><CloudOff size={14} /> Sem internet</span>;
   if (s.erro) return <span className="chip" data-cor="erro" title={s.erro}><CloudOff size={14} /> Erro ao sincronizar</span>;
   if (s.sincronizando) return <span className="chip so-desktop"><RefreshCw size={14} /> Sincronizando</span>;
@@ -45,7 +30,6 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mais, setMais] = useState(false);
   const [novo, setNovo] = useState(false);
   const navegar = useNavigate();
-  const s = useStatusSync();
   const principais = SECOES.filter((sec) => sec.principal);
   const ir = (rota: string) => { setNovo(false); setMais(false); navegar(rota); };
 
@@ -69,31 +53,6 @@ export function Layout({ children }: { children: ReactNode }) {
           <Botao variante="primario" className="so-desktop" onClick={() => setNovo(true)}>Novo</Botao>
         </div>
       </header>
-
-      {!s.sessaoAtiva && s.modo === 'nuvem' && (
-        <div style={{
-          background: 'linear-gradient(90deg, rgba(234,88,12,0.18), rgba(245,158,11,0.18))',
-          borderBottom: '1px solid rgba(245,158,11,0.3)',
-          padding: '8px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          fontSize: 13
-        }}>
-          <span>
-            ☁️ <strong>Atenção:</strong> Você está no navegador web e não fez login. Entre com sua conta para carregar seus clientes e configurações salvos no Supabase.
-          </span>
-          <button
-            type="button"
-            className="btn btn-primario vidro-pilula pequeno"
-            style={{ padding: '4px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            onClick={() => navegar('/configuracoes?aba=dados')}
-          >
-            Entrar e Carregar Dados
-          </button>
-        </div>
-      )}
 
       <main className="conteudo">{children}</main>
 
