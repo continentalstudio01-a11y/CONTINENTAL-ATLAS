@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { UserPlus, Plus, Trash2 } from 'lucide-react';
+import { UserPlus, Plus, Trash2, FileText, CheckCircle2, X } from 'lucide-react';
 import { Botao, BotaoIcone, CabecalhoTela, Campo, Card, Marcador, AssistenteTexto, useAvisar } from '../../componentes/ui';
 import { useConfig, useLista } from '../../lib/hooks';
 import { db } from '../../lib/db';
@@ -9,6 +9,7 @@ import { novoId } from '../../lib/ids';
 import { hoje, somarDias } from '../../lib/formato';
 import { documentoValido, formatarDocumento } from '../../lib/validacao';
 import { aplicarChecklists, atualizarCobrancasFuturas, cancelarCobrancasFuturas, encerrarCliente, gerarCobrancas } from '../../lib/automacoes';
+import { parsearTexto } from '../../lib/importarTxt';
 import type { Cliente, ClienteServico, ClienteTrafego, Servico } from '../../lib/tipos';
 
 type Linha = ClienteServico & { _nova?: boolean; _statusAnterior?: string };
@@ -39,6 +40,62 @@ export function FormCliente() {
   const [trafego, setTrafego] = useState<Partial<ClienteTrafego>>(trafegoVazio);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
+
+  // ── Importação por .txt ──────────────────────────────────────────────────────
+  const [arrastando, setArrastando] = useState(false);
+  const [dadosImportados, setDadosImportados] = useState<string[] | null>(null);
+  const inputTxtRef = useRef<HTMLInputElement>(null);
+
+  const aplicarImportacao = (texto: string) => {
+    const d = parsearTexto(texto);
+    const campos: string[] = [];
+    const upd: Partial<Cliente> = {};
+
+    if (d.nome)         { upd.nome = d.nome;               campos.push('Nome'); }
+    if (d.nome_fantasia){ upd.nome_fantasia = d.nome_fantasia; campos.push('Nome fantasia'); }
+    if (d.responsavel)  { upd.responsavel = d.responsavel; campos.push('Responsável'); }
+    if (d.whatsapp)     { upd.whatsapp = d.whatsapp;       campos.push('WhatsApp'); }
+    if (d.telefone)     { upd.telefone = d.telefone;       campos.push('Telefone'); }
+    if (d.email)        { upd.email = d.email;             campos.push('E-mail'); }
+    if (d.cidade)       { upd.cidade = d.cidade;           campos.push('Cidade'); }
+    if (d.uf)           { upd.uf = d.uf;                   campos.push('UF'); }
+    if (d.endereco)     { upd.endereco = d.endereco;       campos.push('Endereço'); }
+    if (d.nicho)        { upd.nicho = d.nicho;             campos.push('Nicho'); }
+    if (d.observacoes_extras) {
+      const obs = [c.observacoes, d.observacoes_extras].filter(Boolean).join('\n');
+      upd.observacoes = obs;
+      campos.push('Observações');
+    }
+    if (d.instagram) {
+      const obs = [upd.observacoes ?? c.observacoes, `Instagram: ${d.instagram}`].filter(Boolean).join('\n');
+      upd.observacoes = obs;
+      campos.push('Instagram');
+    }
+    if (d.site) {
+      const obs = [upd.observacoes ?? c.observacoes, `Site: ${d.site}`].filter(Boolean).join('\n');
+      upd.observacoes = obs;
+    }
+
+    if (Object.keys(upd).length === 0) {
+      setDadosImportados(['⚠️ Nenhum dado reconhecido. Verifique se o arquivo tem campos como: Cliente, WhatsApp, Cidade, etc.']);
+      return;
+    }
+    setC((p) => ({ ...p, ...upd }));
+    setDadosImportados(campos);
+  };
+
+  const lerArquivo = (file: File) => {
+    if (!file.name.match(/\.(txt|md|csv)$/i) && file.type !== 'text/plain') {
+      setDadosImportados(['❌ Arquivo inválido. Arraste um arquivo .txt ou .md']);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const texto = e.target?.result as string;
+      if (texto) aplicarImportacao(texto);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
 
   useEffect(() => {
     if (!editando) {
@@ -127,6 +184,93 @@ export function FormCliente() {
       <CabecalhoTela titulo={editando ? 'Editar Cliente' : 'Novo Cliente'} icone={<UserPlus size={28} strokeWidth={1.6} />}
         subtitulo={editando ? c.nome : 'Ao salvar, o Atlas cria as cobranças, os vencimentos na agenda e o checklist de cada serviço.'} />
       <div className="coluna" style={{ gap: 18 }}>
+
+        {/* ── ZONA IMPORTAR POR .TXT ──────────────────────────────────────── */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+          onDragLeave={() => setArrastando(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setArrastando(false);
+            const file = e.dataTransfer.files[0];
+            if (file) lerArquivo(file);
+          }}
+          onClick={() => inputTxtRef.current?.click()}
+          style={{
+            border: `2px dashed ${arrastando ? 'var(--primario)' : 'var(--vidro-borda)'}`,
+            borderRadius: 14,
+            padding: '16px 20px',
+            background: arrastando ? 'rgba(var(--primario-rgb, 0,120,255),0.07)' : 'var(--vidro-painel)',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <input
+            ref={inputTxtRef}
+            type="file"
+            accept=".txt,.md,.csv,text/plain"
+            hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) lerArquivo(f); e.target.value = ''; }}
+          />
+
+          {!dadosImportados ? (
+            <div className="linha" style={{ alignItems: 'center', gap: 12 }}>
+              <FileText size={28} strokeWidth={1.4} style={{ color: 'var(--texto-secundario)', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  {arrastando ? '📂 Solte o arquivo aqui!' : '📄 Importar dados de arquivo .txt'}
+                </div>
+                <div className="secundario" style={{ fontSize: 12, marginTop: 2 }}>
+                  Arraste e solte um arquivo .txt, ou clique aqui para selecionar.<br />
+                  O sistema lê automaticamente: nome, WhatsApp, cidade, nicho, e-mail, Instagram e mais.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="linha" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                <div className="linha" style={{ gap: 6, alignItems: 'center' }}>
+                  <CheckCircle2 size={18} style={{ color: 'var(--ok)', flexShrink: 0 }} />
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    {dadosImportados[0]?.startsWith('⚠️') || dadosImportados[0]?.startsWith('❌')
+                      ? 'Resultado da importação'
+                      : `✅ ${dadosImportados.length} campo(s) preenchido(s) automaticamente`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setDadosImportados(null); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--texto-secundario)' }}
+                  title="Fechar"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {dadosImportados[0]?.startsWith('⚠️') || dadosImportados[0]?.startsWith('❌') ? (
+                  <span style={{ color: 'var(--atencao)' }}>{dadosImportados[0]}</span>
+                ) : (
+                  dadosImportados.map((campo) => (
+                    <span key={campo} style={{
+                      background: 'rgba(var(--ok-rgb, 34,197,94), 0.15)',
+                      color: 'var(--ok)',
+                      borderRadius: 6, padding: '2px 8px', fontWeight: 500
+                    }}>
+                      {campo}
+                    </span>
+                  ))
+                )}
+              </div>
+              <div className="secundario" style={{ fontSize: 11, marginTop: 2 }}>
+                Confira os campos abaixo e ajuste se necessário. Clique aqui para importar outro arquivo.
+              </div>
+            </div>
+          )}
+        </div>
+
         <Card titulo="Dados do Cliente">
           <div className="grade-form">
             <Campo rotulo="Tipo">
