@@ -2,10 +2,7 @@
  * importarTxt.ts — Parser inteligente de texto livre (proposta, briefing, anotações)
  * para extrair dados do cliente automaticamente.
  * 
- * Reconhece padrões como:
- *   Cliente: / **Cliente:** / Nome: / Empresa: / Segmento: / Nicho:
- *   WhatsApp: / Telefone: / E-mail: / Cidade: / CEP: / UF: / Estado:
- *   Instagram: / Site:
+ * Reconhece dados cadastrais, serviços contratados, pacotes e configurações de tráfego.
  */
 
 export interface DadosExtraidos {
@@ -21,10 +18,23 @@ export interface DadosExtraidos {
   nicho: string;
   instagram: string;
   site: string;
-  observacoes_extras: string; // campos não mapeados que podem ser úteis
+  observacoes_extras: string;
+  
+  // Serviço / Pacote contratado
+  servico_nome?: string;
+  pacote_nome?: string;
+  valor?: number;
+  duracao_dias?: number;
+  tipo_cobranca?: 'pacote' | 'mensal';
+  
+  // Tráfego / Campanha
+  regiao_divulgacao?: string;
+  publico_alvo?: string;
+  objetivo_campanha?: string;
+  meta_alcance?: string;
 }
 
-// Limpa marcadores markdown e emoji do valor extraído
+// Limpa marcadores markdown e emojis do valor extraído
 function limpar(v: string): string {
   return v
     .replace(/\*\*/g, '')              // **negrito**
@@ -51,7 +61,6 @@ function extrair(texto: string, padroes: string[]): string {
 function extrairFone(texto: string, padroes: string[]): string {
   const val = extrair(texto, padroes);
   if (val) return val;
-  // Fallback: procura padrão de telefone brasileiro na linha que contém o padrão
   for (const padrao of padroes) {
     const linhas = texto.split('\n');
     for (const linha of linhas) {
@@ -65,11 +74,30 @@ function extrairFone(texto: string, padroes: string[]): string {
   return '';
 }
 
+// Extrai número financeiro de strings como "R$ 247,00" ou "247"
+function extrairValorNumerico(str: string): number {
+  if (!str) return 0;
+  const limpo = str.replace(/[^\d,\.]/g, '');
+  if (!limpo) return 0;
+  // Trata formato brasileiro (247,00)
+  const padraoBr = limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo;
+  const num = parseFloat(padraoBr);
+  return isNaN(num) ? 0 : num;
+}
+
+// Extrai número de dias de strings como "10 dias" ou "7d"
+function extrairDias(str: string): number {
+  if (!str) return 0;
+  const m = str.match(/(\d+)\s*(?:dias?|d\b)/i);
+  if (m) return parseInt(m[1], 10);
+  const apenasNum = parseInt(str.replace(/\D/g, ''), 10);
+  return isNaN(apenasNum) ? 0 : apenasNum;
+}
+
 // Extrai cidade e UF de strings como "Maceió – AL" ou "Maceió/AL" ou "Maceió - AL"
 function extrairCidadeUF(cidadeRaw: string): { cidade: string; uf: string } {
   const m = cidadeRaw.match(/^(.+?)[\s–\-\/]+([A-Z]{2})\s*$/);
   if (m) return { cidade: m[1].trim(), uf: m[2].trim() };
-  // Tenta extrair UF do próprio texto
   const uf = cidadeRaw.match(/\b([A-Z]{2})\b/);
   return {
     cidade: cidadeRaw.replace(/\b[A-Z]{2}\b/, '').replace(/[\s–\-\/]+$/, '').trim(),
@@ -141,21 +169,52 @@ export function parsearTexto(texto: string): Partial<DadosExtraidos> {
   const site = extrair(texto, ['Site', 'Website', 'Web', 'URL', 'Link']);
   if (site) dados.site = site;
 
-  // ── Observações extras (objetivo, público-alvo, estratégia) ─────────────────
+  // ── Pacote / Serviço / Investimento ──────────────────────────────────────────
+  const pacote = extrair(texto, ['Pacote', 'Plano', 'Serviço']);
+  if (pacote) dados.pacote_nome = pacote;
+
+  const investimento = extrair(texto, ['Investimento', 'Valor', 'Preço', 'Mensalidade', 'Total']);
+  if (investimento) {
+    dados.valor = extrairValorNumerico(investimento);
+  }
+
+  const periodo = extrair(texto, ['Período', 'Periodo', 'Prazo', 'Duração', 'Vigência']);
+  if (periodo) {
+    dados.duracao_dias = extrairDias(periodo);
+    dados.tipo_cobranca = 'pacote';
+  } else if (texto.toLowerCase().includes('panfletagem') || texto.toLowerCase().includes('panfletos')) {
+    dados.tipo_cobranca = 'pacote';
+  }
+
+  // Tráfego / Panfletagem
+  if (texto.toLowerCase().includes('panfletagem') || texto.toLowerCase().includes('anúncios') || texto.toLowerCase().includes('tráfego')) {
+    dados.servico_nome = 'Tráfego Pago';
+  }
+
+  // ── Região / Público / Objetivo / Meta ───────────────────────────────────────
+  const regiao = extrair(texto, ['Região', 'Área de divulgação', 'Area de divulgacao', 'Abrangência']);
+  if (regiao) dados.regiao_divulgacao = regiao;
+
+  const publico = extrair(texto, ['Público-alvo', 'Publico-alvo', 'Publico alvo', 'Perfil', 'Público']);
+  if (publico) dados.publico_alvo = publico;
+
+  const objetivo = extrair(texto, ['Objetivo', 'Objetivo da campanha', 'Meta da campanha']);
+  if (objetivo) dados.objetivo_campanha = objetivo;
+
+  const meta = extrair(texto, ['Meta do pacote', 'Meta', 'Alcance estimado', 'Pessoas alcançadas']);
+  if (meta) dados.meta_alcance = meta;
+
+  // ── Observações extras estruturadas ─────────────────────────────────────────
   const extras: string[] = [];
-  const objetivo = extrair(texto, ['Objetivo', 'Objetivo da campanha', 'Meta']);
-  if (objetivo) extras.push(`Objetivo: ${objetivo}`);
+  if (dados.pacote_nome) extras.push(`📦 Pacote: ${dados.pacote_nome}`);
+  if (dados.duracao_dias) extras.push(`📅 Período: ${dados.duracao_dias} dias`);
+  if (dados.valor) extras.push(`💰 Investimento: R$ ${dados.valor.toFixed(2)}`);
+  if (dados.regiao_divulgacao) extras.push(`📍 Região: ${dados.regiao_divulgacao}`);
+  if (dados.publico_alvo) extras.push(`👥 Público: ${dados.publico_alvo}`);
+  if (dados.objetivo_campanha) extras.push(`🎯 Objetivo: ${dados.objetivo_campanha}`);
+  if (dados.meta_alcance) extras.push(`📈 Meta: ${dados.meta_alcance}`);
 
-  const publico = extrair(texto, ['Público-alvo', 'Publico alvo', 'Público alvo', 'Perfil']);
-  if (publico) extras.push(`Público: ${publico}`);
-
-  const periodo = extrair(texto, ['Período', 'Periodo', 'Prazo', 'Duração']);
-  if (periodo) extras.push(`Período: ${periodo}`);
-
-  const investimento = extrair(texto, ['Investimento', 'Valor', 'Verba']);
-  if (investimento) extras.push(`Investimento: ${investimento}`);
-
-  if (extras.length) dados.observacoes_extras = extras.join(' | ');
+  if (extras.length) dados.observacoes_extras = extras.join('\n');
 
   return dados;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { UserPlus, Plus, Trash2, FileText, CheckCircle2, X } from 'lucide-react';
 import { Botao, BotaoIcone, CabecalhoTela, Campo, Card, Marcador, AssistenteTexto, useAvisar } from '../../componentes/ui';
 import { useConfig, useLista } from '../../lib/hooks';
@@ -76,6 +76,40 @@ export function FormCliente() {
       upd.observacoes = obs;
     }
 
+    // Preenche serviço / pacote contratado automaticamente caso detectado
+    if (d.valor || d.pacote_nome || d.servico_nome) {
+      const srvTrafego = servicos.find(s => s.chave === 'trafego' || s.nome.toLowerCase().includes('tráfego') || s.nome.toLowerCase().includes('panfletagem')) || servicos[0];
+      if (srvTrafego) {
+        const novaLinha: Linha = {
+          id: novoId(),
+          cliente_id: '',
+          servico_id: srvTrafego.id,
+          descricao: d.pacote_nome ? `${d.pacote_nome}${d.duracao_dias ? ` (${d.duracao_dias} dias)` : ''}` : 'Campanha de Tráfego Pago',
+          tipo_cobranca: d.tipo_cobranca || 'pacote',
+          valor: d.valor || srvTrafego.preco_base || 0,
+          dia_vencimento: 10,
+          parcelas: 1,
+          primeiro_vencimento: hoje(),
+          inicio: hoje(),
+          fim: d.duracao_dias ? somarDias(hoje(), d.duracao_dias) : null,
+          status: 'ativo',
+          _nova: true,
+          criado_em: '',
+          atualizado_em: '',
+          excluido: false,
+        };
+        setLinhas([novaLinha]);
+        campos.push(`Pacote: ${d.pacote_nome || srvTrafego.nome} (R$ ${novaLinha.valor})`);
+      }
+
+      setTrafego((p) => ({
+        ...p,
+        verba_mensal_planejada: d.valor || p.verba_mensal_planejada || 0,
+        resultado_principal: 'leads',
+        frequencia_relatorio: 'semanal',
+      }));
+    }
+
     if (Object.keys(upd).length === 0) {
       setDadosImportados(['⚠️ Nenhum dado reconhecido. Verifique se o arquivo tem campos como: Cliente, WhatsApp, Cidade, etc.']);
       return;
@@ -96,6 +130,13 @@ export function FormCliente() {
     };
     reader.readAsText(file, 'utf-8');
   };
+
+  const location = useLocation();
+  useEffect(() => {
+    if (location.state && (location.state as any).textoImportado) {
+      aplicarImportacao((location.state as any).textoImportado);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (!editando) {

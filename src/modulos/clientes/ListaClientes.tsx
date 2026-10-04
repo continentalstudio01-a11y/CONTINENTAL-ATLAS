@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, Search, Download } from 'lucide-react';
-import { Abas, Botao, CabecalhoTela, Card, Chip, Vazio } from '../../componentes/ui';
+import { Users, Search, Download, FileText, Upload } from 'lucide-react';
+import { Abas, Botao, CabecalhoTela, Card, Chip, Vazio, useAvisar } from '../../componentes/ui';
 import { useLista } from '../../lib/hooks';
 import { moeda, semAcento, soDigitos } from '../../lib/formato';
 import { exportarLista } from '../../lib/planilhas';
@@ -12,12 +12,30 @@ export const corStatus = { ativo: 'var(--ok)', pausado: 'var(--atencao)', encerr
 
 export function ListaClientes() {
   const navegar = useNavigate();
+  const avisar = useAvisar();
   const clientes = useLista<Cliente>('clientes') ?? [];
   const servicosCli = useLista<ClienteServico>('cliente_servicos', (s) => s.status === 'ativo') ?? [];
   const servicos = useLista<Servico>('servicos') ?? [];
   const [filtro, setFiltro] = useState<Filtro>('ativo');
   const [busca, setBusca] = useState('');
   const [servico, setServico] = useState('');
+  const [arrastando, setArrastando] = useState(false);
+  const inputTxtRef = useRef<HTMLInputElement>(null);
+
+  const processarArquivo = (file: File) => {
+    if (!file.name.match(/\.(txt|md|csv)$/i) && file.type !== 'text/plain') {
+      avisar('Arquivo inválido. Por favor, envie um arquivo .txt');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const texto = e.target?.result as string;
+      if (texto) {
+        navegar('/clientes/novo', { state: { textoImportado: texto } });
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  };
 
   const nomeServ = useMemo(() => new Map(servicos.map((s) => [s.id, s.nome])), [servicos]);
   const lista = useMemo(() => {
@@ -39,11 +57,59 @@ export function ListaClientes() {
 
   return (
     <>
-      <CabecalhoTela titulo="Clientes" icone={<Users size={28} strokeWidth={1.6} />} subtitulo={`${ativos} ${ativos === 1 ? 'cliente ativo' : 'clientes ativos'}`}
+      <input
+        ref={inputTxtRef}
+        type="file"
+        accept=".txt,.md,.csv,text/plain"
+        hidden
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) processarArquivo(f); e.target.value = ''; }}
+      />
+
+      <CabecalhoTela
+        titulo="Clientes"
+        icone={<Users size={28} strokeWidth={1.6} />}
+        subtitulo={`${ativos} ${ativos === 1 ? 'cliente ativo' : 'clientes ativos'}`}
         acoes={<>
           <Botao icone={<Download size={16} />} onClick={exportar} disabled={!lista.length}>Exportar</Botao>
+          <Botao icone={<FileText size={16} />} onClick={() => inputTxtRef.current?.click()} title="Importar cliente a partir de arquivo .txt">
+            📄 Importar .txt
+          </Botao>
           <Botao variante="primario" onClick={() => navegar('/clientes/novo')}>Cadastrar cliente</Botao>
-        </>} />
+        </>}
+      />
+
+      {/* Caixa de Arrastar e Soltar .txt diretamente na tela de Clientes */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+        onDragLeave={() => setArrastando(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setArrastando(false);
+          const f = e.dataTransfer.files[0];
+          if (f) processarArquivo(f);
+        }}
+        onClick={() => inputTxtRef.current?.click()}
+        style={{
+          border: `2px dashed ${arrastando ? 'var(--primario)' : 'var(--vidro-borda)'}`,
+          borderRadius: 12,
+          padding: '12px 18px',
+          background: arrastando ? 'rgba(var(--primario-rgb, 0,120,255), 0.08)' : 'var(--vidro-painel)',
+          cursor: 'pointer',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          transition: 'all 0.2s',
+        }}
+      >
+        <FileText size={24} style={{ color: 'var(--texto-secundario)', flexShrink: 0 }} />
+        <div style={{ fontSize: 13 }}>
+          <strong>{arrastando ? '📂 Solte o arquivo .txt aqui para importar!' : '📄 Arraste o arquivo .txt do cliente aqui (ou clique)'}</strong>
+          <span className="secundario" style={{ marginLeft: 8, fontSize: 12 }}>
+            — Extrai e preenche os dados do cliente automaticamente.
+          </span>
+        </div>
+      </div>
       <div className="linha" style={{ marginBottom: 16 }}>
         <Abas<Filtro> abas={[{ id: 'ativo', rotulo: 'Ativos' }, { id: 'pausado', rotulo: 'Pausados' }, { id: 'encerrado', rotulo: 'Encerrados' }, { id: 'todos', rotulo: 'Todos' }]} ativa={filtro} aoMudar={setFiltro} />
         <div className="cresce" style={{ minWidth: 220, position: 'relative' }}>
