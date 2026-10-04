@@ -99,11 +99,17 @@ async function executar() {
       const doGrupo = pend.filter((p) => p.tabela === nome);
       if (!doGrupo.length) continue;
       const ids = Array.from(new Set(doGrupo.map((p) => p.registro_id)));
-      const registros = (await tabela(nome).bulkGet(ids)).filter(Boolean);
+      const registros = (await tabela(nome).bulkGet(ids)).filter(Boolean).map((r: any) => {
+        const { _nova, _statusAnterior, ...limpo } = r;
+        return limpo;
+      });
       for (let i = 0; i < registros.length; i += 200) {
         const lote = registros.slice(i, i + 200);
         const { error } = await supabase.from(nome).upsert(lote, { onConflict: 'id' });
-        if (error) throw new Error(`${nome}: ${error.message}`);
+        if (error) {
+          console.warn(`Erro sync envio ${nome}:`, error.message);
+          throw new Error(`${nome}: ${error.message}`);
+        }
       }
       await db.pendencias.bulkDelete(doGrupo.map((p) => p.seq!));
     }
